@@ -22,7 +22,8 @@ num_nodes=1
 # the third one set node_rank 2, and so on. Default 0
 node_rank=0
 # data
-data=/export/data/asr-data/OpenSLR/33/
+#data=/export/data/asr-data/OpenSLR/33/
+data=/home/admin/wenet/data/asr-data/OpenSLR/33/
 data_url=www.openslr.org/resources/33
 
 nj=16
@@ -46,6 +47,7 @@ decode_checkpoint=$dir/final.pt
 average_num=30
 decode_modes="ctc_greedy_search ctc_prefix_beam_search attention attention_rescoring"
 
+echo ${pwd}
 . tools/parse_options.sh || exit 1;
 
 if [ ${stage} -le -1 ] && [ ${stop_stage} -ge -1 ]; then
