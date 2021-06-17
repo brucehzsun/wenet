@@ -175,8 +175,7 @@ class BaseEncoder(torch.nn.Module):
         Args:
             xs (torch.Tensor): chunk input
             offset (int): current offset in encoder output time stamp
-            required_cache_size (int): cache size required for next chunk
-                compuation
+            required_cache_size (int): cache size required for next chunk compuation
                 >=0: actual cache size
                 <0: means all history cache is required
             subsampling_cache (Optional[torch.Tensor]): subsampling cache
@@ -343,10 +342,9 @@ class TransformerEncoder(BaseEncoder):
         self.encoders = torch.nn.ModuleList([
             TransformerEncoderLayer(
                 output_size,
-                MultiHeadedAttention(attention_heads, output_size,
-                                     attention_dropout_rate),
-                PositionwiseFeedForward(output_size, linear_units,
-                                        dropout_rate), dropout_rate,
+                MultiHeadedAttention(attention_heads, output_size,attention_dropout_rate),
+                PositionwiseFeedForward(output_size, linear_units,dropout_rate),
+                dropout_rate,
                 normalize_before, concat_after) for _ in range(num_blocks)
         ])
 
@@ -430,10 +428,8 @@ class ConformerEncoder(BaseEncoder):
                 output_size,
                 encoder_selfattn_layer(*encoder_selfattn_layer_args),
                 positionwise_layer(*positionwise_layer_args),
-                positionwise_layer(
-                    *positionwise_layer_args) if macaron_style else None,
-                convolution_layer(
-                    *convolution_layer_args) if use_cnn_module else None,
+                positionwise_layer(*positionwise_layer_args) if macaron_style else None,
+                convolution_layer( *convolution_layer_args) if use_cnn_module else None,
                 dropout_rate,
                 normalize_before,
                 concat_after,

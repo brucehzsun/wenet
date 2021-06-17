@@ -135,6 +135,7 @@ if __name__ == '__main__':
                                    pin_memory=args.pin_memory,
                                    batch_size=1,
                                    num_workers=args.num_workers)
+    #cross validation
     cv_data_loader = DataLoader(cv_dataset,
                                 collate_fn=cv_collate_func,
                                 sampler=cv_sampler,

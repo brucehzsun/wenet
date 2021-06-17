@@ -180,7 +180,10 @@ if __name__ == '__main__':
                     ctc_weight=args.ctc_weight,
                     simulate_streaming=args.simulate_streaming)
                 hyps = [hyp]
+
+            print("keys=", keys)
             for i, key in enumerate(keys):
+                print("key={},i={}", key, i)
                 content = ''
                 for w in hyps[i]:
                     if w == eos:
@@ -188,3 +191,4 @@ if __name__ == '__main__':
                     content += char_dict[w]
                 logging.info('{} {}'.format(key, content))
                 fout.write('{} {}\n'.format(key, content))
+            break

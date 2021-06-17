@@ -39,12 +39,12 @@ train_set=train
 train_config=conf/train_conformer.yaml
 cmvn=true
 dir=exp/conformer
-checkpoint=
+checkpoint=$dir/1.pt
 
 # use average_checkpoint will get better result
 average_checkpoint=true
 decode_checkpoint=$dir/final.pt
-average_num=30
+average_num=2
 decode_modes="ctc_greedy_search ctc_prefix_beam_search attention attention_rescoring"
 
 echo ${pwd}
@@ -114,22 +114,25 @@ if [ ${stage} -le 3 ] && [ ${stop_stage} -ge 3 ]; then
 fi
 
 if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
-    # Training
+    # Training dir=exp/conformer
     mkdir -p $dir
     INIT_FILE=$dir/ddp_init
     # You had better rm it manually before you start run.sh on first node.
-    # rm -f $INIT_FILE # delete old one before starting
+#    rm -f $INIT_FILE # delete old one before starting
     init_method=file://$(readlink -f $INIT_FILE)
+    #  file:///home/admin/wenet/examples/aishell/s0/exp/conformer/ddp_init
     echo "$0: init method is $init_method"
     # The number of gpus runing on each node/machine
-    num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+#    num_gpus=$(echo $CUDA_VISIBLE_DEVICES | awk -F "," '{print NF}')
+    num_gpus=1
     # Use "nccl" if it works, otherwise use "gloo"
     dist_backend="nccl"
     # The total number of processes/gpus, so that the master knows
     # how many workers to wait for.
     # More details about ddp can be found in
     # https://pytorch.org/tutorials/intermediate/dist_tuto.html
-    world_size=`expr $num_gpus \* $num_nodes`
+    # world_size=`expr $num_gpus \* $num_nodes`
+    world_size=-1
     echo "total gpus is: $world_size"
     cmvn_opts=
     $cmvn && cp ${feat_dir}/${train_set}/global_cmvn $dir
@@ -139,9 +142,13 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
     # export later
     for ((i = 0; i < $num_gpus; ++i)); do
     {
-        gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$i+1])
+#        gpu_id=$(echo $CUDA_VISIBLE_DEVICES | cut -d',' -f$[$i+1])
+        echo "gpu_id = "$gpu_id
+        gpu_id=-1
         # Rank of each gpu/process used for knowing whether it is
         # the master of a worker.
+        echo "invoke train num = "i
+        echo "gpu_id = "$gpu_id
         rank=`expr $node_rank \* $num_gpus + $i`
         python wenet/bin/train.py --gpu $gpu_id \
             --config $train_config \
@@ -153,7 +160,6 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
             --ddp.world_size $world_size \
             --ddp.rank $rank \
             --ddp.dist_backend $dist_backend \
-            --num_workers 2 \
             $cmvn_opts \
             --pin_memory
     } &
@@ -192,6 +198,7 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
             --ctc_weight $ctc_weight \
             --result_file $test_dir/text \
             ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size}
+
          python tools/compute-wer.py --char=1 --v=1 \
             $feat_dir/test/text $test_dir/text > $test_dir/wer
     } &
@@ -253,3 +260,26 @@ if [ ${stage} -le 8 ] && [ ${stop_stage} -ge 8 ]; then
         --gen_praat
 fi
 
+
+if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ]; then
+    # Specify decoding_chunk_size if it's a unified dynamic chunk trained model
+    # -1 for full chunk
+    decoding_chunk_size=
+    ctc_weight=0.5
+    mode="ctc_greedy_search"
+
+    test_dir=$dir/test_one
+    mkdir -p $test_dir
+    python wenet/bin/recognize_test.py --gpu 0 \
+        --mode $mode \
+        --config $dir/train.yaml \
+        --test_data $feat_dir/test/format.data \
+        --checkpoint $decode_checkpoint \
+        --beam_size 10 \
+        --batch_size 1 \
+        --penalty 0.0 \
+        --dict $dict \
+        --ctc_weight $ctc_weight \
+        --result_file $test_dir/text \
+        ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size}
+fi

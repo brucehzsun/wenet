@@ -197,6 +197,9 @@ class ASRModel(torch.nn.Module):
             speech, speech_lengths, decoding_chunk_size,
             num_decoding_left_chunks,
             simulate_streaming)  # (B, maxlen, encoder_dim)
+        print("encoder_out={}".format(encoder_out.size()))
+        print("encoder_mask={}".format(encoder_mask.size()))
+
         maxlen = encoder_out.size(1)
         encoder_dim = encoder_out.size(2)
         running_size = batch_size * beam_size
@@ -206,6 +209,9 @@ class ASRModel(torch.nn.Module):
             1, beam_size, 1, 1).view(running_size, 1,
                                      maxlen)  # (B*N, 1, max_len)
 
+        print("encoder_out={}".format(encoder_out.size()))
+        print("encoder_mask={}".format(encoder_mask.size()))
+
         hyps = torch.ones([running_size, 1], dtype=torch.long,
                           device=device).fill_(self.sos)  # (B*N, 1)
         scores = torch.tensor([0.0] + [-float('inf')] * (beam_size - 1),
@@ -214,6 +220,7 @@ class ASRModel(torch.nn.Module):
             device)  # (B*N, 1)
         end_flag = torch.zeros_like(scores, dtype=torch.bool, device=device)
         cache: Optional[List[torch.Tensor]] = None
+
         # 2. Decoder forward step by step
         for i in range(1, maxlen + 1):
             # Stop if all batch and all beam produce eos
@@ -298,16 +305,25 @@ class ASRModel(torch.nn.Module):
             speech, speech_lengths, decoding_chunk_size,
             num_decoding_left_chunks,
             simulate_streaming)  # (B, maxlen, encoder_dim)
+
         maxlen = encoder_out.size(1)
         encoder_out_lens = encoder_mask.squeeze(1).sum(1)
-        ctc_probs = self.ctc.log_softmax(
-            encoder_out)  # (B, maxlen, vocab_size)
+        print("encoder_out={},encoder_mask={},maxlen={},encoder_out_lens={}"
+              .format(encoder_out.size(),encoder_mask.size(),maxlen,encoder_out_lens))
+        ctc_probs = self.ctc.log_softmax(encoder_out)  # (B, maxlen, vocab_size)
+        print("ctc_probs={}".format(ctc_probs.size()))
         topk_prob, topk_index = ctc_probs.topk(1, dim=2)  # (B, maxlen, 1)
+        print("topk_prob={},topk_index={}".format(topk_prob.size(),topk_index.size()))
+        print("topk_prob={},topk_index={}".format(topk_prob[0][0],topk_index[0][0]))
         topk_index = topk_index.view(batch_size, maxlen)  # (B, maxlen)
+        print("topk_index={}".format(topk_index.size()))
         mask = make_pad_mask(encoder_out_lens)  # (B, maxlen)
         topk_index = topk_index.masked_fill_(mask, self.eos)  # (B, maxlen)
+        print("topk_index={}".format(topk_index.size()))
         hyps = [hyp.tolist() for hyp in topk_index]
+        print("hyps={}".format(hyps))
         hyps = [remove_duplicates_and_blank(hyp) for hyp in hyps]
+        print("hyps={}".format(hyps))
         return hyps
 
     def _ctc_prefix_beam_search(
@@ -350,11 +366,13 @@ class ASRModel(torch.nn.Module):
             num_decoding_left_chunks,
             simulate_streaming)  # (B, maxlen, encoder_dim)
         maxlen = encoder_out.size(1)
-        ctc_probs = self.ctc.log_softmax(
-            encoder_out)  # (1, maxlen, vocab_size)
+        ctc_probs = self.ctc.log_softmax(encoder_out)  # (1, maxlen, vocab_size)
+        print("ctc_probs={}".format(ctc_probs.size()))
         ctc_probs = ctc_probs.squeeze(0)
+        print("ctc_probs={}".format(ctc_probs.size()))
         # cur_hyps: (prefix, (blank_ending_score, none_blank_ending_score))
         cur_hyps = [(tuple(), (0.0, -float('inf')))]
+        print("cur_hyps={}".format(cur_hyps))
         # 2. CTC beam search step by step
         for t in range(0, maxlen):
             logp = ctc_probs[t]  # (vocab_size,)
@@ -392,6 +410,10 @@ class ASRModel(torch.nn.Module):
                                key=lambda x: log_add(list(x[1])),
                                reverse=True)
             cur_hyps = next_hyps[:beam_size]
+        print("cur_hyps={}".format(type(cur_hyps)))
+        print("cur_hyps={}".format(len(cur_hyps)))
+        print("cur_hyps[0]={}".format(cur_hyps[0]))
+        print("cur_hyps[1]={}".format(cur_hyps[1]))
         hyps = [(y[0], log_add([y[1][0], y[1][1]])) for y in cur_hyps]
         return hyps, encoder_out
 
@@ -483,11 +505,13 @@ class ASRModel(torch.nn.Module):
                                   encoder_out.size(1),
                                   dtype=torch.bool,
                                   device=device)
-        decoder_out, _ = self.decoder(
-            encoder_out, encoder_mask, hyps_pad,
-            hyps_lens)  # (beam_size, max_hyps_len, vocab_size)
+        decoder_out, _ = self.decoder(encoder_out, encoder_mask, hyps_pad,hyps_lens)  # (beam_size, max_hyps_len, vocab_size)
+        print("decoder_out={}".format(decoder_out.size()))
         decoder_out = torch.nn.functional.log_softmax(decoder_out, dim=-1)
-        decoder_out = decoder_out.cpu().numpy()
+        decoder_out = decoder_out.detach().numpy()
+        print("decoder_out={}".format(decoder_out.shape))
+        # print("decoder_out={}".format(decoder_out))
+        # decoder_out = decoder_out.cpu().numpy()
         # Only use decoder score for rescoring
         best_score = -float('inf')
         best_index = 0
@@ -623,9 +647,7 @@ def init_asr_model(configs):
 
     encoder_type = configs.get('encoder', 'conformer')
     if encoder_type == 'conformer':
-        encoder = ConformerEncoder(input_dim,
-                                   global_cmvn=global_cmvn,
-                                   **configs['encoder_conf'])
+        encoder = ConformerEncoder(input_dim,global_cmvn=global_cmvn,**configs['encoder_conf'])
     else:
         encoder = TransformerEncoder(input_dim,
                                      global_cmvn=global_cmvn,
