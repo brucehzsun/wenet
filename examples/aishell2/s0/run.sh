@@ -5,7 +5,7 @@
 
 # Use this to control how many gpu you use, It's 1-gpu training if you specify
 # just 1gpu, otherwise it's is multiple gpu training based on DDP in pytorch
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6"
+export CUDA_VISIBLE_DEVICES="2"
 # The NCCL_SOCKET_IFNAME variable specifies which IP interface to use for nccl
 # communication. More details can be found in
 # https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/env.html
@@ -23,9 +23,9 @@ num_nodes=1
 node_rank=0
 
 # modify this to your AISHELL-2 data path
-trn_set=/ssd/nfs06/open_source_data/AISHELL-2/iOS/data
-dev_set=/ssd/nfs06/open_source_data/AISHELL-DEV-TEST-SET/iOS/dev
-tst_set=/ssd/nfs06/open_source_data/AISHELL-DEV-TEST-SET/iOS/test
+trn_set=/home/gitlab/DATASET/asr-raw-data/open_source_data/AISHELL-2/iOS/data
+dev_set=/home/gitlab/DATASET/asr-raw-data/open_source_data/AISHELL-DEV-TEST-SET/iOS/dev
+tst_set=/home/gitlab/DATASET/asr-raw-data/open_source_data/AISHELL-DEV-TEST-SET/iOS/test
 
 nj=16
 feat_dir=raw_wav
@@ -37,7 +37,8 @@ train_set=train
 # 2. conf/train_conformer.yaml: Standard conformer
 # 3. conf/train_unified_conformer.yaml: Unified dynamic chunk causal conformer
 # 4. conf/train_unified_transformer.yaml: Unified dynamic chunk transformer
-train_config=conf/train_unified_transformer.yaml
+# train_config=conf/train_unified_transformer.yaml
+train_config=conf/train_transformer.yaml
 cmvn=true
 dir=exp/transformer
 checkpoint=
